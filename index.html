@@ -261,10 +261,15 @@
       </div>
 
       <!-- Price Info -->
-      <div class="price">
+      <div class="price" id="stockDataPanel">
         <div><strong>Spot Price:</strong> <span id="spotPrice" class="green">--</span></div>
-        <div>Max Pain: <strong id="maxPain">--</strong></div>
-        <div>Lot Size: <strong id="lotSize">--</strong></div>
+        <div>Open Price: <span id="openPrice">--</span></div>
+        <div>High Price: <span id="highPrice">--</span></div>
+        <div>Low Price: <span id="lowPrice">--</span></div>
+        <div>Prev. Close: <span id="prevClose">--</span></div>
+        <div>Open Interest: <span id="openInterest">--</span></div>
+        <div>OI Change: <span id="oiChange">--</span></div>
+        <div>Lot Size: <span id="lotSize">--</span></div>
       </div>
 
       <!-- Auto Refresh Toggle + Interval -->
@@ -290,8 +295,8 @@
 
     <!-- Legend -->
     <div class="legend">
-      <span class="put">PUT OI</span>
-      <span class="call">CALL OI</span>
+      <span class="put" style="color:#f96c92;">PUT CHNG OI</span>
+      <span class="call" style="color:#2196f3;">CALL CHNG OI</span>
     </div>
   </div>
 
@@ -381,6 +386,10 @@
         if (quote) {
           return {
             price: parseFloat(quote["05. price"]),
+            open: parseFloat(quote["02. open"]),
+            high: parseFloat(quote["03. high"]),
+            low: parseFloat(quote["04. low"]),
+            prevClose: parseFloat(quote["08. previous close"]),
             change: parseFloat(quote["09. change"]),
             changePercent: quote["10. change percent"]
           };
@@ -394,19 +403,38 @@
     // Update Spot Price and other details
     async function updateStockData() {
       const spotPriceEl = document.getElementById("spotPrice");
+      const openPriceEl = document.getElementById("openPrice");
+      const highPriceEl = document.getElementById("highPrice");
+      const lowPriceEl = document.getElementById("lowPrice");
+      const prevCloseEl = document.getElementById("prevClose");
+      const lotSizeEl = document.getElementById("lotSize");
+
       const data = await fetchStockPrice(currentSymbol);
-      
+
       if (data) {
-        const { price, change, changePercent } = data;
-        spotPriceEl.textContent = `${price.toFixed(2)} ${change >= 0 ? '▲' : '▼'} (${Math.abs(change).toFixed(2)} | ${changePercent})`;
-        spotPriceEl.className = change >= 0 ? "green" : "red";
-        document.getElementById("maxPain").textContent = "--"; // Will add later
-        document.getElementById("lotSize").textContent = lotSizes[currentSymbol] || "--";
+        spotPriceEl.textContent = `${data.price.toFixed(2)} ${data.change >= 0 ? '▲' : '▼'} (${Math.abs(data.change).toFixed(2)} | ${data.changePercent})`;
+        spotPriceEl.className = data.change >= 0 ? "green" : "red";
+        openPriceEl.textContent = data.open ? data.open.toFixed(2) : "--";
+        highPriceEl.textContent = data.high ? data.high.toFixed(2) : "--";
+        lowPriceEl.textContent = data.low ? data.low.toFixed(2) : "--";
+        prevCloseEl.textContent = data.prevClose ? data.prevClose.toFixed(2) : "--";
+        lotSizeEl.textContent = lotSizes[currentSymbol] || "--";
+      } else {
+        spotPriceEl.textContent = "--";
+        spotPriceEl.className = "";
+        openPriceEl.textContent = "--";
+        highPriceEl.textContent = "--";
+        lowPriceEl.textContent = "--";
+        prevCloseEl.textContent = "--";
+        lotSizeEl.textContent = lotSizes[currentSymbol] || "--";
       }
 
       // Re-render chart
       const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
       renderChart(activeTab);
+
+      document.getElementById("openInterest").textContent = "95,826,000"; // Demo value
+      document.getElementById("oiChange").textContent = "510,000"; // Demo value
     }
 
     // Generate sample OI data
@@ -418,97 +446,514 @@
       return { strikes, putOi, callOi };
     }
 
+    function getOIChangeData() {
+      // Example data from your prompt (replace with fetch if needed)
+      return [
+        { strike: 220, callOiChange: -3000, putOiChange: 0 },
+        { strike: 225, callOiChange: -12000, putOiChange: 5000 },
+        { strike: 230, callOiChange: -33000, putOiChange: 7000 },
+        { strike: 235, callOiChange: -66000, putOiChange: 9000 },
+        { strike: 240, callOiChange: -309000, putOiChange: 12000 },
+        { strike: 245, callOiChange: -216000, putOiChange: 15000 },
+        { strike: 250, callOiChange: -126000, putOiChange: 18000 },
+        { strike: 255, callOiChange: -363000, putOiChange: 21000 },
+        { strike: 260, callOiChange: -288000, putOiChange: 24000 },
+        { strike: 265, callOiChange: -129000, putOiChange: 27000 },
+        { strike: 270, callOiChange: -9000, putOiChange: 30000 },
+        { strike: 275, callOiChange: -33000, putOiChange: 33000 },
+        { strike: 280, callOiChange: 0, putOiChange: 36000 },
+        { strike: 285, callOiChange: 0, putOiChange: 39000 },
+        { strike: 290, callOiChange: 0, putOiChange: 42000 },
+        { strike: 295, callOiChange: -132000, putOiChange: 45000 },
+        { strike: 300, callOiChange: 0, putOiChange: 48000 }
+      ];
+    }
+
     // Render Chart based on tab
     function renderChart(tab) {
       const ctx = document.getElementById('optionChart').getContext('2d');
       if (optionChart) optionChart.destroy();
 
-      const { strikes, putOi, callOi } = generateSampleData();
-
-      switch (tab) {
-        case 'open-interest':
-          optionChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels: strikes,
-              datasets: [
-                { label: 'PUT OI', data: putOi, backgroundColor: '#ec4899', borderRadius: 6, barPercentage: 0.7 },
-                { label: 'CALL OI', data: callOi, backgroundColor: '#6366f1', borderRadius: 6, barPercentage: 0.7 }
-              ]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { display: false } },
-              scales: {
-                x: { ticks: { color: '#a3a3a3' } },
-                y: { ticks: { color: '#a3a3a3' } }
+      if (tab === 'change-in-oi') {
+        const oiData = getOIChangeData();
+        optionChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: oiData.map(d => d.strike),
+            datasets: [
+              {
+                label: 'PUT CHNG OI',
+                data: oiData.map(d => d.putOiChange),
+                backgroundColor: '#f96c92', // pink shade
+                borderRadius: 0,
+                barPercentage: 0.8
+              },
+              {
+                label: 'CALL CHNG OI',
+                data: oiData.map(d => d.callOiChange),
+                backgroundColor: '#2196f3', // blue shade
+                borderRadius: 0,
+                barPercentage: 0.8
               }
-            }
-          });
-          break;
-
-        case 'change-in-oi':
-          optionChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels: strikes,
-              datasets: [
-                { label: 'PUT CHNG OI', data: putOi.map(x => x - 5), backgroundColor: '#ec4899', borderRadius: 6 },
-                { label: 'CALL CHNG OI', data: callOi.map(x => x + 5), backgroundColor: '#6366f1', borderRadius: 6 }
-              ]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { display: false } },
-              scales: {
-                x: { ticks: { color: '#a3a3a3' } },
-                y: { ticks: { color: '#a3a3a3' } }
-              }
-            }
-          });
-          break;
-
-        case 'put-call-ratio':
-        case 'volume-pcr':
-        case 'live-max-pain':
-          const times = ['09:15', '10:00', '10:45', '11:30', '12:15', '13:00', '14:00', '15:00'];
-          const pcr = [0.8, 0.75, 0.78, 0.72, 0.70, 0.68, 0.65, 0.62];
-          const spotPrices = [820, 822, 821, 824, 823, 825, 826, 824];
-
-          optionChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-              labels: times,
-              datasets: [
-                {
-                  label: tab === 'live-max-pain' ? 'Max Pain' : 'PCR',
-                  data: tab === 'live-max-pain' ? spotPrices.map(p => p + 10) : pcr,
-                  borderColor: '#6366f1',
-                  fill: false,
-                  tension: 0.3
-                },
-                {
-                  label: 'Spot Price',
-                  data: spotPrices,
-                  borderColor: '#ec4899',
-                  fill: false,
-                  tension: 0.3
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#ccc', font: { weight: 'bold' } }
+              },
+              tooltip: {
+                backgroundColor: '#222',
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                borderColor: '#6366f1',
+                borderWidth: 1,
+                callbacks: {
+                  title: function(context) {
+                    return `Strike Price: ${context[0].label}`;
+                  },
+                  label: function(context) {
+                    let label = context.dataset.label || '';
+                    let value = context.parsed.y;
+                    // Format as Lakh if > 100000
+                    let formatted = Math.abs(value) >= 100000
+                      ? (value / 100000).toFixed(2) + 'L'
+                      : value.toLocaleString();
+                    return `${label}: ${formatted}`;
+                  }
                 }
-              ]
+              }
             },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { position: 'bottom', labels: { color: '#ccc' } } },
-              scales: {
-                x: { ticks: { color: '#a3a3a3' } },
-                y: { ticks: { color: '#a3a3a3' } }
+            scales: {
+              x: {
+                ticks: { color: '#999', font: { size: 12 } },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
+              },
+              y: {
+                ticks: {
+                  color: '#999',
+                  font: { size: 12 },
+                  callback: function(value) {
+                    // Format as Lakh for large values
+                    if (Math.abs(value) >= 100000) return (value / 100000).toFixed(1) + 'L';
+                    return value;
+                  }
+                },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
               }
             }
-          });
-          break;
+          }
+        });
+        return;
+      }
+
+      if (tab === 'open-interest') {
+        // Example strikes and OI values for a more realistic axis
+        const strikes = [
+          215, 220, 225, 230, 232.5, 235, 237.5, 240, 242.5, 245, 247.5, 250, 252.5, 255, 257.5, 260, 262.5, 265, 267.5, 270, 272.5, 275, 277.5, 280, 282.5, 285, 287.5, 290, 292.5, 295, 300, 305, 310
+        ];
+        // Simulate OI values in lakhs and crores
+        const putOi = strikes.map(() => Math.floor(Math.random() * 1800000 + 10000)); // up to 18L
+        const callOi = strikes.map(() => Math.floor(Math.random() * 1800000 + 10000));
+
+        optionChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: strikes,
+            datasets: [
+              { label: 'PUT OI', data: putOi, backgroundColor: '#f96c92', borderRadius: 0, barPercentage: 0.8 },
+              { label: 'CALL OI', data: callOi, backgroundColor: '#2196f3', borderRadius: 0, barPercentage: 0.8 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#ccc', font: { weight: 'bold' } }
+              },
+              tooltip: {
+                callbacks: {
+                  title: function(context) {
+                    return `Strike Price: ${context[0].label}`;
+                  },
+                  label: function(context) {
+                    let label = context.dataset.label || '';
+                    let value = context.parsed.y;
+                    // Format as Lakh or Crore
+                    if (value >= 10000000) return `${label}: ${(value / 10000000).toFixed(2)}Cr.`;
+                    if (value >= 100000) return `${label}: ${(value / 100000).toFixed(2)}L`;
+                    return `${label}: ${value.toLocaleString()}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: {
+                  color: '#999',
+                  font: { size: 12 },
+                  callback: function(val, idx) {
+                    // Show all strikes, including decimals
+                    return strikes[idx];
+                  }
+                },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: 'OI',
+                  color: '#808080',
+                  font: { size: 14 }
+                },
+                ticks: {
+                  color: '#999',
+                  font: { size: 12 },
+                  callback: function(value) {
+                    if (value >= 10000000) return (value / 10000000).toFixed(1) + 'Cr.';
+                    if (value >= 100000) return (value / 100000).toFixed(0) + 'L';
+                    return value;
+                  }
+                },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
+              }
+            }
+          }
+        });
+        return;
+      }
+
+      if (tab === 'put-call-ratio') {
+        // Example time and data arrays
+        const times = [
+          '09:15', '09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30',
+          '11:45', '12:00', '12:15', '12:30', '12:45', '13:00', '13:15', '13:30', '13:45', '14:00',
+          '14:15', '14:30', '14:45', '15:00', '15:15', '15:30', '15:45', '16:00', '16:10'
+        ];
+        // Simulated PCR and Spot Price data
+        const pcr = [
+          0.482, 0.478, 0.475, 0.473, 0.472, 0.470, 0.468, 0.469, 0.470, 0.4763,
+          0.475, 0.474, 0.473, 0.472, 0.471, 0.470, 0.469, 0.468, 0.467, 0.466,
+          0.465, 0.466, 0.467, 0.468, 0.469, 0.470, 0.471, 0.472, 0.473
+        ];
+        const spotPrices = [
+          261.75, 261.60, 261.40, 261.20, 261.00, 260.90, 260.80, 260.70, 260.60, 260.80,
+          260.70, 260.60, 260.50, 260.40, 260.30, 260.20, 260.10, 260.00, 259.90, 259.80,
+          259.70, 259.60, 259.50, 259.50, 259.60, 259.70, 259.80, 259.90, 260.00
+        ];
+
+        optionChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: times,
+            datasets: [
+              {
+                label: 'PCR',
+                data: pcr,
+                borderColor: '#2196f3',
+                backgroundColor: 'transparent',
+                yAxisID: 'y',
+                tension: 0.3,
+                pointRadius: 2,
+                pointHoverRadius: 5
+              },
+              {
+                label: 'Spot Price',
+                data: spotPrices,
+                borderColor: '#ec4899',
+                backgroundColor: 'transparent',
+                yAxisID: 'y1',
+                tension: 0.3,
+                pointRadius: 2,
+                pointHoverRadius: 5
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: { color: '#ccc', font: { weight: 'bold' } }
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false,
+                backgroundColor: '#222',
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                borderColor: '#6366f1',
+                borderWidth: 1,
+                callbacks: {
+                  title: function(context) {
+                    return `Time: ${context[0].label}`;
+                  },
+                  label: function(context) {
+                    if (context.dataset.label === 'PCR') {
+                      return `PCR: ${context.parsed.y.toFixed(4)}`;
+                    }
+                    if (context.dataset.label === 'Spot Price') {
+                      return `Spot Price: ${context.parsed.y.toFixed(2)}`;
+                    }
+                    return `${context.dataset.label}: ${context.parsed.y}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: '#999', font: { size: 12 } },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
+              },
+              y: {
+                type: 'linear',
+                position: 'left',
+                title: {
+                  display: true,
+                  text: 'PCR',
+                  color: '#808080',
+                  font: { size: 14 }
+                },
+                ticks: { color: '#999', font: { size: 12 } },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
+              },
+              y1: {
+                type: 'linear',
+                position: 'right',
+                title: {
+                  display: true,
+                  text: 'Spot Price',
+                  color: '#808080',
+                  font: { size: 14 }
+                },
+                ticks: { color: '#999', font: { size: 12 } },
+                grid: { drawOnChartArea: false }
+              }
+            }
+          }
+        });
+        return;
+      }
+
+      if (tab === 'volume-pcr') {
+        const times = [
+          '09:15', '09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30',
+          '11:45', '12:00', '12:15', '12:30', '12:45', '13:00', '13:15', '13:30', '13:45', '14:00',
+          '14:15', '14:30', '14:45', '15:00', '15:15', '15:30', '15:45', '16:00', '16:10'
+        ];
+        // Simulated Volume PCR and Spot Price data
+        const volumePcr = [
+          0.340, 0.320, 0.300, 0.280, 0.260, 0.255, 0.250, 0.248, 0.255, 0.2558,
+          0.255, 0.254, 0.253, 0.252, 0.251, 0.250, 0.249, 0.248, 0.247, 0.246,
+          0.245, 0.246, 0.247, 0.248, 0.249, 0.250, 0.251, 0.252, 0.253
+        ];
+        const spotPrices = [
+          261.75, 261.60, 261.40, 261.20, 261.00, 260.90, 260.80, 260.70, 260.60, 260.55,
+          260.50, 260.45, 260.40, 260.35, 260.30, 260.25, 260.20, 260.15, 260.10, 260.05,
+          260.00, 259.95, 259.90, 259.85, 259.80, 259.75, 259.70, 259.65, 259.60
+        ];
+
+        optionChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: times,
+            datasets: [
+              {
+                label: 'Volume PCR',
+                data: volumePcr,
+                borderColor: '#2196f3',
+                backgroundColor: 'transparent',
+                yAxisID: 'y',
+                tension: 0.3,
+                pointRadius: 2,
+                pointHoverRadius: 5
+              },
+              {
+                label: 'Spot Price',
+                data: spotPrices,
+                borderColor: '#ec4899',
+                backgroundColor: 'transparent',
+                yAxisID: 'y1',
+                tension: 0.3,
+                pointRadius: 2,
+                pointHoverRadius: 5
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: { color: '#ccc', font: { weight: 'bold' } }
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false,
+                backgroundColor: '#222',
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                borderColor: '#6366f1',
+                borderWidth: 1,
+                callbacks: {
+                  title: function(context) {
+                    return `Time: ${context[0].label}`;
+                  },
+                  label: function(context) {
+                    if (context.dataset.label === 'Volume PCR') {
+                      return `Volume PCR: ${context.parsed.y.toFixed(4)}`;
+                    }
+                    if (context.dataset.label === 'Spot Price') {
+                      return `Spot Price: ${context.parsed.y.toFixed(2)}`;
+                    }
+                    return `${context.dataset.label}: ${context.parsed.y}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: '#999', font: { size: 12 } },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
+              },
+              y: {
+                type: 'linear',
+                position: 'left',
+                title: {
+                  display: true,
+                  text: 'Volume PCR',
+                  color: '#808080',
+                  font: { size: 14 }
+                },
+                ticks: { color: '#999', font: { size: 12 } },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
+              },
+              y1: {
+                type: 'linear',
+                position: 'right',
+                title: {
+                  display: true,
+                  text: 'Spot Price',
+                  color: '#808080',
+                  font: { size: 14 }
+                },
+                ticks: { color: '#999', font: { size: 12 } },
+                grid: { drawOnChartArea: false }
+              }
+            }
+          }
+        });
+        return;
+      }
+
+      if (tab === 'live-max-pain') {
+        const strikes = [
+          215, 220, 225, 230, 232.5, 235, 237.5, 240, 242.5, 245, 247.5, 250, 252.5, 255, 257.5, 260, 262.5, 265, 267.5, 270, 272.5, 275, 277.5, 280, 282.5, 285, 287.5, 290, 292.5, 295, 300, 305, 310
+        ];
+        // Simulated PP (Put Pain) and CP (Call Pain) values in crores and lakhs
+        const pp = [
+          1610000000, 1450000000, 1200000000, 980000000, 800000000, 720000000, 650000000, 580000000, 510000000, 440000000,
+          370000000, 300000000, 230000000, 160000000, 90000000, 40000000, 20000000, 10000000, 5000000, 3000000,
+          2000000, 1000000, 500000, 300000, 200000, 100000, 50000, 30000, 20000, 10000, 5000, 3000, 2000
+        ];
+        const cp = [
+          1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000,
+          12000000, 14000000, 16000000, 18000000, 20000000, 22000000, 24000000, 26000000, 28000000, 30000000,
+          40000000, 50000000, 60000000, 70000000, 80000000, 90000000, 100000000, 120000000, 140000000, 160000000,
+          180000000, 200000000, 220000000
+        ];
+
+        optionChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: strikes,
+            datasets: [
+              {
+                label: 'PP',
+                data: pp,
+                backgroundColor: '#ec4899',
+                borderRadius: 0,
+                barPercentage: 0.8
+              },
+              {
+                label: 'CP',
+                data: cp,
+                backgroundColor: '#2196f3',
+                borderRadius: 0,
+                barPercentage: 0.8
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#ccc', font: { weight: 'bold' } }
+              },
+              tooltip: {
+                backgroundColor: '#222',
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                borderColor: '#6366f1',
+                borderWidth: 1,
+                callbacks: {
+                  title: function(context) {
+                    return `Strike Price: ${context[0].label}`;
+                  },
+                  label: function(context) {
+                    let label = context.dataset.label === 'PP' ? 'PP' : 'CP';
+                    let value = context.parsed.y;
+                    // Format as Crore or Lakh
+                    if (value >= 10000000) return `${label}: ${(value / 10000000).toFixed(1)}Cr.`;
+                    if (value >= 100000) return `${label}: ${(value / 100000).toFixed(1)}L`;
+                    return `${label}: ${value.toLocaleString()}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: {
+                  color: '#999',
+                  font: { size: 12 },
+                  callback: function(val, idx) {
+                    return strikes[idx];
+                  }
+                },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: 'OI Values',
+                  color: '#808080',
+                  font: { size: 14 }
+                },
+                ticks: {
+                  color: '#999',
+                  font: { size: 12 },
+                  callback: function(value) {
+                    if (value >= 1000000000) return (value / 1000000000).toFixed(1) + 'B.';
+                    if (value >= 10000000) return (value / 10000000).toFixed(1) + 'Cr.';
+                    if (value >= 100000) return (value / 100000).toFixed(1) + 'L';
+                    return value;
+                  }
+                },
+                grid: { color: '#ccc', drawOnChartArea: true, borderDash: [2, 2], lineWidth: 0.4 }
+              }
+            }
+          }
+        });
+        return;
       }
     }
 
@@ -550,6 +995,29 @@
     }
 
     window.onload = initApp;
+
+    const stockList = [
+      "SBIN", "RELIANCE", "TCS", "INFY", "HDFCBANK", "WIPRO", "ICICIBANK", "AXISBANK", "KOTAKBANK", "LT", "ITC", "MARUTI"
+    ];
+
+    function renderStockDropdown() {
+      const select = document.getElementById("stockSelect");
+      select.innerHTML = "";
+      stockList.forEach(stock => {
+        const opt = document.createElement("option");
+        opt.value = stock;
+        opt.textContent = stock;
+        select.appendChild(opt);
+      });
+    }
+
+    document.getElementById("stockSelect").addEventListener("change", () => {
+      currentSymbol = document.getElementById("stockSelect").value;
+      updateStockData();
+    });
+    document.getElementById("expirySelect").addEventListener("change", () => {
+      updateStockData();
+    });
   </script>
 </body>
 </html>
